@@ -1,106 +1,64 @@
-"""Download various ML models into the models/ directory.
+"""Download ML models for inference server.
 
-Uses different sources (Hugging Face Hub, Keras utility, and plain HTTP
-links) to fetch a diverse set of models. Downloads are skipped if the
-file already exists.
+This script fetches a variety of vision and NLP models from the Hugging Face
+Hub and stores them under the local ``models/`` directory. Downloads are
+idempotent; existing files or directories are skipped.
 """
 from __future__ import annotations
 
-import os
 import shutil
 from pathlib import Path
-from typing import Optional
 
-import requests
-from tqdm import tqdm
-from huggingface_hub import hf_hub_download
-from tensorflow.keras.utils import get_file
+from huggingface_hub import hf_hub_download, snapshot_download
 
 MODEL_DIR = Path(__file__).resolve().parent.parent / "models"
 MODEL_DIR.mkdir(exist_ok=True)
 
 
-def download_file(url: str, dest: Path) -> None:
-    """Download a file from a direct HTTP link with a progress bar."""
-    if dest.exists():
-        print(f"✅ {dest.name} already exists, skipping.")
-        return
-
-    response = requests.get(url, stream=True)
-    response.raise_for_status()
-    total = int(response.headers.get("content-length", 0))
-    with open(dest, "wb") as file, tqdm(
-        total=total, unit="B", unit_scale=True, desc=dest.name
-    ) as progress:
-        for chunk in response.iter_content(chunk_size=8192):
-            if chunk:
-                file.write(chunk)
-                progress.update(len(chunk))
-    print(f"✅ Downloaded {dest.name}")
+def download_from_hf(repo_id: str, filename: str, target_path: Path) -> bool:
+    """Download a single file from Hugging Face Hub."""
+    if target_path.exists():
+        print(f"⚠ skipped {target_path.name} (already exists)")
+        return False
+    try:
+        src_path = hf_hub_download(repo_id=repo_id, filename=filename)
+        shutil.copy(src_path, target_path)
+        print(f"✅ downloaded {target_path.name}")
+        return True
+    except Exception as exc:  # noqa: BLE001
+        print(f"❌ failed to download {filename} from {repo_id}: {exc}")
+        return False
 
 
-def download_with_keras(url: str, dest: Path) -> None:
-    """Download using Keras's get_file utility."""
-    if dest.exists():
-        print(f"✅ {dest.name} already exists, skipping.")
-        return
-    path = get_file(fname=dest.name, origin=url, cache_dir=str(MODEL_DIR), cache_subdir=".")
-    shutil.move(path, dest)
-    print(f"✅ Downloaded {dest.name}")
-
-
-def download_from_hf(
-    repo_id: str,
-    filename: str,
-    dest: Path,
-    config_filename: Optional[str] = None,
-    config_dest: Optional[Path] = None,
-) -> None:
-    """Download a file from Hugging Face Hub (optionally config)."""
-    if dest.exists():
-        print(f"✅ {dest.name} already exists, skipping.")
-        return
-    path = hf_hub_download(repo_id=repo_id, filename=filename)
-    shutil.copy(path, dest)
-    if config_filename and config_dest:
-        cfg_path = hf_hub_download(repo_id=repo_id, filename=config_filename)
-        shutil.copy(cfg_path, config_dest)
-    print(f"✅ Downloaded {dest.name}")
+def snapshot_model(repo_id: str, local_dir: Path) -> bool:
+    """Download an entire model repository as a snapshot."""
+    if local_dir.exists() and any(local_dir.iterdir()):
+        print(f"⚠ skipped snapshot {repo_id} (directory exists)")
+        return False
+    try:
+        snapshot_download(repo_id=repo_id, local_dir=local_dir, local_dir_use_symlinks=False)
+        print(f"✅ downloaded snapshot {repo_id}")
+        return True
+    except Exception as exc:  # noqa: BLE001
+        print(f"❌ failed to snapshot {repo_id}: {exc}")
+        return False
 
 
 def main() -> None:
     print("\n⬇️ Starting model downloads...\n")
-    # Fashion-MNIST classifier via Keras utility
-    download_with_keras(
-        url="https://github.com/nnUyi/FashionMNIST-Keras/raw/master/fashion_mnist.h5",
-        dest=MODEL_DIR / "fashion_mnist.h5",
-    )
-
-    # MNIST digit CNN via plain HTTP
-    download_file(
-        url="https://github.com/llSourcell/mnist_digit_recognition/blob/master/DeepLearning/mnist_cnn_model.h5?raw=1",
-        dest=MODEL_DIR / "mnist_digits.h5",
-    )
-
-    # GPT-2 tiny model via Hugging Face Hub
     download_from_hf(
-        repo_id="sshleifer/tiny-gpt2",
-        filename="pytorch_model.bin",
-        dest=MODEL_DIR / "gpt2_pytorch.bin",
-        config_filename="config.json",
-        config_dest=MODEL_DIR / "gpt2_config.json",
+        repo_id="Eehjie/fashion-mnist-tf-keras-model",
+        filename="fashion_mnist_model.h5",
+        target_path=MODEL_DIR / "fashion_mnist.h5",
     )
-
-    # DistilBERT sentiment model via Hugging Face Hub
     download_from_hf(
-        repo_id="sshleifer/tiny-distilbert-base-uncased-finetuned-sst-2-english",
-        filename="pytorch_model.bin",
-        dest=MODEL_DIR / "distilbert_sentiment.bin",
-        config_filename="config.json",
-        config_dest=MODEL_DIR / "distilbert_config.json",
+        repo_id="paulpall/Beyond_MNIST",
+        filename="Best_Model.h5",
+        target_path=MODEL_DIR / "mnist_digits.h5",
     )
-
-    print("\n🎉 Downloads complete. Models are stored in the models/ directory.")
+    snapshot_model("openai-community/gpt2", MODEL_DIR / "gpt2")
+    snapshot_model("distilbert-base-uncased-finetuned-sst-2-english", MODEL_DIR / "distilbert-sst2")
+    print("\n🎉 Downloads complete. Models are stored in ./models/\n")
 
 
 if __name__ == "__main__":
