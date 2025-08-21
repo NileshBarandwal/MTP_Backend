@@ -33,7 +33,7 @@
       },
       "version": "1",
       "task": "classification",
-      "checksum": "1bdbaa1be7529874d6ba3f864b8c4e1f79ed2c40e63581a4c60dfd325a3dc01a"
+      "checksum": "1b2ac67a3e5e42150816582a811c04223d268da8ee573954aa3c70b6785deb91"
     },
     {
       "id": "fashion_mnist",
@@ -68,7 +68,7 @@
       },
       "version": "1",
       "task": "classification",
-      "checksum": "718c69b4577221706e0e6d8e9fe9a6c89cfadf7bdcf6f075f9ba54b521db58f5"
+      "checksum": "189c03341f6e2177058f1d8513e6de6dacf98a98ea14ecbaf6b86ca00fda10bf"
     },
     {
       "id": "resnet18_imagenet",
@@ -96,7 +96,7 @@
       },
       "version": "1",
       "task": "classification",
-      "checksum": "c7c834b06765a64ae06cb139132b2e04fc145b02268307b9e3f4cf671317fa3a"
+      "checksum": "a1f72eecfb612a2e42fd15b41704881e5987a299002b9d0c9df6ecbf0dd34981"
     }
   ]
 }

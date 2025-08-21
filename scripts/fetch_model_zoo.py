@@ -98,6 +98,7 @@ def ensure_resnet18() -> str:
         meta = weights.meta
         status = "downloaded"
     except Exception:
+        torch.manual_seed(0)
         model = resnet18(weights=None)
         meta = {"categories": [f"class_{i}" for i in range(1000)]}
         status = "random"

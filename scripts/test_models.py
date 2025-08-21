@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import sys
 import subprocess
+import importlib
 from pathlib import Path
 
 import numpy as np
@@ -13,7 +14,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT))
-from model_registry import MODEL_SPECS, get_model
+import model_registry as mr
 
 MODEL_DIR = ROOT / "models"
 FETCH_SCRIPT = ROOT / "scripts" / "fetch_model_zoo.py"
@@ -23,13 +24,14 @@ FETCH_SCRIPT = ROOT / "scripts" / "fetch_model_zoo.py"
 
 
 def _ensure_models() -> bool:
-    missing = [spec.path for spec in MODEL_SPECS.values() if not spec.path.exists()]
+    missing = [spec.path for spec in mr.MODEL_SPECS.values() if not spec.path.exists()]
     if not missing:
         return True
     names = ", ".join(p.name for p in missing)
     print(f"Missing models: {names}. Running fetch script...")
     subprocess.run([sys.executable, str(FETCH_SCRIPT)], check=False)
-    missing = [spec.path for spec in MODEL_SPECS.values() if not spec.path.exists()]
+    importlib.reload(mr)
+    missing = [spec.path for spec in mr.MODEL_SPECS.values() if not spec.path.exists()]
     if missing:
         print("Still missing models:", ", ".join(p.name for p in missing))
         return False
@@ -49,9 +51,9 @@ def _synthetic_input(spec) -> np.ndarray:
 
 def run_local_tests() -> bool:
     ok = True
-    for key, spec in MODEL_SPECS.items():
+    for key, spec in mr.MODEL_SPECS.items():
         try:
-            model = get_model(key)
+            model = mr.get_model(key)
             dummy = _synthetic_input(spec)
             preds = model.predict(dummy)
             if np.isnan(preds).any() or np.isinf(preds).any():
@@ -74,7 +76,7 @@ def run_http_test() -> bool:
     if r.status_code != 200:
         print("⚠️ /health returned", r.status_code)
         return False
-    spec = next(iter(MODEL_SPECS.values()))
+    spec = next(iter(mr.MODEL_SPECS.values()))
     dummy = (np.random.rand(*spec.input_size) * 255).astype("uint8")
     if spec.mode == "L":
         img = Image.fromarray(dummy, mode="L")
