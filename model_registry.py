@@ -1,77 +1,53 @@
 from __future__ import annotations
 
+"""Model registry backed by models/registry.json."""
+
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List
+import json
 
 from model_loader import BaseModel, KerasModel, ModelSpec, ONNXModel, TorchModel
 
 MODEL_DIR = Path(__file__).resolve().parent / "models"
+REGISTRY_FILE = MODEL_DIR / "registry.json"
 
-# ImageNet labels used for both PyTorch and ONNX models
-_IMAGENET_LABELS: List[str]
-labels_file = MODEL_DIR / "imagenet_labels.txt"
-if labels_file.exists():
-    _IMAGENET_LABELS = labels_file.read_text().splitlines()
-else:  # Fallback to empty list
-    _IMAGENET_LABELS = []
 
-MODEL_SPECS: Dict[str, ModelSpec] = {
-    "mnist_digits": ModelSpec(
-        key="mnist_digits",
-        path=MODEL_DIR / "mnist_digits.h5",
-        format="keras",
-        description="MNIST digit classifier (Keras)",
-        input_size=(28, 28),
-        mode="L",
-        mean=[0.0],
-        std=[1.0],
-        labels=[str(i) for i in range(10)],
-    ),
-    "fashion_mnist": ModelSpec(
-        key="fashion_mnist",
-        path=MODEL_DIR / "fashion_mnist.h5",
-        format="keras",
-        description="Fashion-MNIST classifier (Keras)",
-        input_size=(28, 28),
-        mode="L",
-        mean=[0.0],
-        std=[1.0],
-        labels=[
-            "T-shirt/top",
-            "Trouser",
-            "Pullover",
-            "Dress",
-            "Coat",
-            "Sandal",
-            "Shirt",
-            "Sneaker",
-            "Bag",
-            "Ankle boot",
-        ],
-    ),
-    "resnet18_imagenet": ModelSpec(
-        key="resnet18_imagenet",
-        path=MODEL_DIR / "resnet18.pt",
-        format="torch",
-        description="ResNet18 ImageNet (PyTorch)",
-        input_size=(224, 224),
-        mode="RGB",
-        mean=[0.485, 0.456, 0.406],
-        std=[0.229, 0.224, 0.225],
-        labels=_IMAGENET_LABELS,
-    ),
-    "mobilenet_v3_small": ModelSpec(
-        key="mobilenet_v3_small",
-        path=MODEL_DIR / "mobilenet_v3_small.onnx",
-        format="onnx",
-        description="MobileNetV3 Small (ONNX)",
-        input_size=(224, 224),
-        mode="RGB",
-        mean=[0.485, 0.456, 0.406],
-        std=[0.229, 0.224, 0.225],
-        labels=_IMAGENET_LABELS,
-    ),
-}
+def _load_labels(item_labels) -> List[str]:
+    if isinstance(item_labels, list):
+        return item_labels
+    path = MODEL_DIR / str(item_labels)
+    if path.exists():
+        return path.read_text().splitlines()
+    return []
+
+
+def _parse_registry() -> Dict[str, ModelSpec]:
+    if not REGISTRY_FILE.exists():
+        return {}
+    data = json.loads(REGISTRY_FILE.read_text())
+    specs: Dict[str, ModelSpec] = {}
+    for item in data.get("models", []):
+        labels = _load_labels(item.get("labels", []))
+        framework = item["framework"]
+        fmt = "torch" if framework == "pytorch" else framework
+        size = item.get("input_spec", {}).get("size", [0, 0])
+        spec = ModelSpec(
+            key=item["id"],
+            path=MODEL_DIR / item["path"],
+            format=fmt,
+            description=item.get("task", item["id"]),
+            input_size=tuple(size),
+            mode=item.get("input_spec", {}).get("mode", "RGB"),
+            mean=item.get("preprocess_profile", {}).get("mean", [0.0, 0.0, 0.0]),
+            std=item.get("preprocess_profile", {}).get("std", [1.0, 1.0, 1.0]),
+            labels=labels,
+        )
+        specs[item["id"]] = spec
+    return specs
+
+
+MODEL_SPECS: Dict[str, ModelSpec] = _parse_registry()
 
 _model_cache: Dict[str, BaseModel] = {}
 
@@ -90,12 +66,17 @@ def get_model(key: str) -> BaseModel:
         raise KeyError(key)
     if key not in _model_cache:
         spec = MODEL_SPECS[key]
-        if spec.format == "keras":
-            _model_cache[key] = KerasModel(spec)
-        elif spec.format == "torch":
-            _model_cache[key] = TorchModel(spec)
-        elif spec.format == "onnx":
-            _model_cache[key] = ONNXModel(spec)
-        else:  # pragma: no cover - defensive
-            raise ValueError(f"Unsupported format: {spec.format}")
+        try:
+            if spec.format == "keras":
+                _model_cache[key] = KerasModel(spec)
+            elif spec.format == "torch":
+                _model_cache[key] = TorchModel(spec)
+            elif spec.format == "onnx":
+                _model_cache[key] = ONNXModel(spec)
+            else:  # pragma: no cover - defensive
+                raise ValueError(f"Unsupported format: {spec.format}")
+        except FileNotFoundError as exc:  # pragma: no cover - runtime message
+            raise FileNotFoundError(
+                f"Model file not found at: {spec.path}. Run: 'python scripts/fetch_model_zoo.py'"
+            ) from exc
     return _model_cache[key]
