@@ -6,6 +6,7 @@ __pycache__/
 venv/
 models/*
 !models/.gitkeep
+!models/registry.json
 *.h5
 *.bin
 *.pb

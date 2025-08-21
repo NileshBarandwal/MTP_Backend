@@ -6,12 +6,34 @@ import numpy as np
 from flask import Flask, jsonify, render_template, request
 from flask_cors import CORS
 
+import os
+
 from model_registry import MODEL_SPECS, get_model, list_models
 from preprocess import prepare_image
 
 app = Flask(__name__)
 CORS(app)
 metrics = Counter()
+
+
+def _warmup_models() -> None:
+    for spec in MODEL_SPECS.values():
+        try:
+            model = get_model(spec.key)
+            h, w = spec.input_size
+            if spec.mode == "L":
+                dummy = np.zeros((1, h, w, 1), dtype="float32")
+            else:
+                dummy = np.zeros((1, 3, h, w), dtype="float32")
+            model.predict(dummy)
+        except FileNotFoundError as exc:
+            print(exc)
+        except Exception as exc:  # pragma: no cover - warmup is best effort
+            print(f"Warmup failed for {spec.key}: {exc}")
+
+
+if os.getenv("WARMUP", "true").lower() not in {"0", "false", "no"}:
+    _warmup_models()
 
 
 @app.get("/")
@@ -38,7 +60,10 @@ def predict():
         return jsonify({"error": "invalid model_key"}), 400
     spec = MODEL_SPECS[model_key]
     arr = prepare_image(request.files["file"].stream, spec)
-    model = get_model(model_key)
+    try:
+        model = get_model(model_key)
+    except FileNotFoundError as exc:
+        return jsonify({"error": str(exc)}), 500
     preds = model.predict(arr)[0]
     idx = int(np.argmax(preds))
     conf = float(np.max(preds))
@@ -65,7 +90,10 @@ def batch_predict():
     spec = MODEL_SPECS[model_key]
     arrs = [prepare_image(f.stream, spec) for f in files]
     batch = np.concatenate(arrs, axis=0)
-    model = get_model(model_key)
+    try:
+        model = get_model(model_key)
+    except FileNotFoundError as exc:
+        return jsonify({"error": str(exc)}), 500
     outputs = model.predict(batch)
     results = []
     for preds in outputs:
