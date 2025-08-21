@@ -1,7 +1,11 @@
-torch
-tensorflow
-transformers
-requests
-huggingface_hub
+flask
+flask-cors
+tensorflow>=2.13
+torch>=2.2
+torchvision>=0.17
+transformers>=4.40
+huggingface-hub>=0.23
 tqdm
+requests
 numpy
+pillow
