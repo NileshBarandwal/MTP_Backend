@@ -5,7 +5,10 @@ from pathlib import Path
 from typing import List
 
 import numpy as np
-import onnxruntime as ort
+try:  # optional dependency
+    import onnxruntime as ort
+except Exception:  # pragma: no cover - optional
+    ort = None  # type: ignore
 import tensorflow as tf
 import torch
 
@@ -47,7 +50,8 @@ class KerasModel(BaseModel):
 class TorchModel(BaseModel):
     def __init__(self, spec: ModelSpec) -> None:
         super().__init__(spec)
-        self.model = torch.load(spec.path, map_location="cpu")
+        bundle = torch.load(spec.path, map_location="cpu", weights_only=False)
+        self.model = bundle["model"] if isinstance(bundle, dict) and "model" in bundle else bundle
         self.model.eval()
 
     def predict(self, batch: np.ndarray) -> np.ndarray:
@@ -60,6 +64,8 @@ class TorchModel(BaseModel):
 class ONNXModel(BaseModel):
     def __init__(self, spec: ModelSpec) -> None:
         super().__init__(spec)
+        if ort is None:  # pragma: no cover - optional dependency
+            raise RuntimeError("onnxruntime is required to load ONNX models")
         self.session = ort.InferenceSession(str(spec.path), providers=["CPUExecutionProvider"])
 
     def predict(self, batch: np.ndarray) -> np.ndarray:

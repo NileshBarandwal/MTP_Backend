@@ -1,0 +1,102 @@
+{
+  "models": [
+    {
+      "id": "mnist_digits",
+      "framework": "keras",
+      "path": "mnist_digits.h5",
+      "labels": [
+        "0",
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9"
+      ],
+      "input_spec": {
+        "size": [
+          28,
+          28
+        ],
+        "mode": "L"
+      },
+      "preprocess_profile": {
+        "mean": [
+          0.0
+        ],
+        "std": [
+          1.0
+        ]
+      },
+      "version": "1",
+      "task": "classification",
+      "checksum": "37e91a36bd3680a17df21fd91560fc90d18acb53681235667d2bdaea3971ce41"
+    },
+    {
+      "id": "fashion_mnist",
+      "framework": "keras",
+      "path": "fashion_mnist.h5",
+      "labels": [
+        "T-shirt/top",
+        "Trouser",
+        "Pullover",
+        "Dress",
+        "Coat",
+        "Sandal",
+        "Shirt",
+        "Sneaker",
+        "Bag",
+        "Ankle boot"
+      ],
+      "input_spec": {
+        "size": [
+          28,
+          28
+        ],
+        "mode": "L"
+      },
+      "preprocess_profile": {
+        "mean": [
+          0.0
+        ],
+        "std": [
+          1.0
+        ]
+      },
+      "version": "1",
+      "task": "classification",
+      "checksum": "48ee64c33a4b3ff39b3febb9dddcf0a7a80595e10ed4081bcb037bf46ed84fe7"
+    },
+    {
+      "id": "resnet18_imagenet",
+      "framework": "pytorch",
+      "path": "resnet18.pt",
+      "labels": "imagenet_labels.txt",
+      "input_spec": {
+        "size": [
+          224,
+          224
+        ],
+        "mode": "RGB"
+      },
+      "preprocess_profile": {
+        "mean": [
+          0.485,
+          0.456,
+          0.406
+        ],
+        "std": [
+          0.229,
+          0.224,
+          0.225
+        ]
+      },
+      "version": "1",
+      "task": "classification",
+      "checksum": "a1f72eecfb612a2e42fd15b41704881e5987a299002b9d0c9df6ecbf0dd34981"
+    }
+  ]
+}
