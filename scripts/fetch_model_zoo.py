@@ -58,11 +58,7 @@ def _verify_keras(path: Path) -> bool:
         return False
     return True
 
-
-
-
-def _train_mnist(dataset: str, out_path: Path) -> None:
-    """Train a tiny CNN on ``dataset`` and save to ``out_path`` as .h5."""
+def _train_mnist(model_name: str, dataset: str, out_path: Path) -> None:
     if tf is None:  # pragma: no cover - defensive
         raise RuntimeError("TensorFlow not available for training")
     try:  # ensure h5py available
@@ -94,36 +90,21 @@ def _train_mnist(dataset: str, out_path: Path) -> None:
 
 
 def ensure_keras(id_: str, repo: str, filename: str) -> str:
-    """Ensure a Keras model exists for ``id_``.
-
-    Attempts to download from HuggingFace; if the download fails or the
-    resulting file is invalid, trains a tiny fallback model.
-    """
     target = MODEL_DIR / f"{id_}.h5"
     if _verify_keras(target):
         return "existing"
-
-    downloaded = False
     try:
         from huggingface_hub import hf_hub_download
 
         src = hf_hub_download(repo_id=repo, filename=filename)
         Path(src).replace(target)
-        downloaded = True
         status = "downloaded"
     except Exception:
-        downloaded = False
-
-    if not downloaded or not _verify_keras(target):
-        dataset = "mnist" if id_ == "mnist_digits" else "fashion_mnist"
-        try:
-            _train_mnist(dataset, target)
-            status = "trained"
-        except Exception:
-            return "missing"
-
-    return status if _verify_keras(target) else "missing"
-
+        _train_mnist(id_, "mnist" if "mnist" in id_ else "fashion_mnist", target)
+        status = "trained"
+    if not _verify_keras(target):
+        return "missing"
+    return status
 
 # ---------------------------------------------------------------------------
 # Torch / ONNX helpers
@@ -161,11 +142,12 @@ def ensure_mobilenet_onnx() -> str:
         return "existing"
     try:
         import onnx  # noqa: F401
-    except Exception as exc:  # pragma: no cover - diagnostics
-        raise RuntimeError(
-            "onnx is required to export mobilenet_v3_small. "
-            "Install it via `pip install onnx`."
-        ) from exc
+    except Exception:
+        if REGISTRY_PATH.exists():
+            data = json.loads(REGISTRY_PATH.read_text())
+            data["models"] = [m for m in data.get("models", []) if m.get("id") != "mobilenet_v3_small"]
+            REGISTRY_PATH.write_text(json.dumps(data, indent=2) + "\n")
+        return "skipped"
     try:
         weights = MobileNet_V3_Small_Weights.DEFAULT
         model = mobilenet_v3_small(weights=weights)

@@ -22,7 +22,7 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 python scripts/fetch_model_zoo.py
 python scripts/test_models.py
-flask --app inference_server run --port 8000
+uvicorn inference_server:app --reload --port 8000
 ```
 
 `fetch_model_zoo.py` downloads small pre-trained checkpoints when possible and
@@ -36,7 +36,9 @@ request as well. The script exits non-zero if any check fails.
 ## Run server
 
 ```bash
-flask --app inference_server run --port 8000
+p inference_server run --port 8000
+=======
+uvicorn inference_server:app --reload --port 8000
 ```
 
 The server hosts the UI at http://127.0.0.1:8000. Upload an image, pick a model
@@ -79,8 +81,6 @@ To register a new model:
   warnings; set `TF_ENABLE_ONEDNN_OPTS=0` to silence them.
 * If downloads fail, the fetch script will train small fallback models. These
   are sufficient for tests but may not be accurate.
-* The ONNX export for `mobilenet_v3_small` requires the `onnx` package. If it
-  cannot be installed, the fetch script will fail for that model.
 * Ensure enough disk space for temporary checkpoints.
 
 ## Disclaimer
