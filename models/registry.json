@@ -33,7 +33,7 @@
       },
       "version": "1",
       "task": "classification",
-      "checksum": "bb3767974982b603764d32e887e58c03cd362e5fd86df6fb1dcd3a5a2179ca58"
+      "checksum": "1919695dbadbd975afb77e4cd5859a0493aa587200d7d0c1defc1f1f736ce58d"
     },
     {
       "id": "fashion_mnist",
@@ -68,7 +68,7 @@
       },
       "version": "1",
       "task": "classification",
-      "checksum": "b2c82c5ed91f237fd0900b789c973fcc9348ee4d7b0f36b236f23758f66cfc23"
+      "checksum": "55a144e3960606a6b1aa78ddf2aacec7349a3f6b5e8de2926ebce4a03d241d8c"
     },
     {
       "id": "resnet18_imagenet",
@@ -97,6 +97,34 @@
       "version": "1",
       "task": "classification",
       "checksum": "a1f72eecfb612a2e42fd15b41704881e5987a299002b9d0c9df6ecbf0dd34981"
+    },
+    {
+      "id": "mobilenet_v3_small",
+      "framework": "onnx",
+      "path": "mobilenet_v3_small.onnx",
+      "labels": "imagenet_labels.txt",
+      "input_spec": {
+        "size": [
+          224,
+          224
+        ],
+        "mode": "RGB"
+      },
+      "preprocess_profile": {
+        "mean": [
+          0.485,
+          0.456,
+          0.406
+        ],
+        "std": [
+          0.229,
+          0.224,
+          0.225
+        ]
+      },
+      "version": "1",
+      "task": "classification",
+      "checksum": ""
     }
   ]
 }

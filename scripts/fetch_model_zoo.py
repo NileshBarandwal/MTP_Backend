@@ -161,12 +161,11 @@ def ensure_mobilenet_onnx() -> str:
         return "existing"
     try:
         import onnx  # noqa: F401
-    except Exception:
-        if REGISTRY_PATH.exists():
-            data = json.loads(REGISTRY_PATH.read_text())
-            data["models"] = [m for m in data.get("models", []) if m.get("id") != "mobilenet_v3_small"]
-            REGISTRY_PATH.write_text(json.dumps(data, indent=2) + "\n")
-        return "skipped"
+    except Exception as exc:  # pragma: no cover - diagnostics
+        raise RuntimeError(
+            "onnx is required to export mobilenet_v3_small. "
+            "Install it via `pip install onnx`."
+        ) from exc
     try:
         weights = MobileNet_V3_Small_Weights.DEFAULT
         model = mobilenet_v3_small(weights=weights)
