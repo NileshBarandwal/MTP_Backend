@@ -35,6 +35,12 @@ def _ensure_models() -> bool:
     if missing:
         print("Still missing models:", ", ".join(str(p) for p in missing))
         return False
+    # explicit check for Keras artifacts
+    for name in ("mnist_digits.h5", "fashion_mnist.h5"):
+        path = mb.resolve_model_path(name)
+        if not path.is_file():
+            print(f"{path} missing after fetch")
+            return False
     return True
 
 

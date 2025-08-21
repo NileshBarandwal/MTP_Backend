@@ -44,9 +44,28 @@ def sha256sum(path: Path) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _verify_keras(path: Path) -> bool:
+    """Return True if a Keras model at ``path`` is loadable and runnable."""
+    if not path.is_file():
+        return False
+    if path.stat().st_size <= 100_000:  # sanity check for truncated files
+        return False
+    try:
+        model = tf.keras.models.load_model(path)  # type: ignore[arg-type]
+        sample = np.zeros((1, 28, 28, 1), dtype="float32")
+        model.predict(sample, verbose=0)
+    except Exception:  # pragma: no cover - diagnostics
+        return False
+    return True
+
+
 def _train_mnist(model_name: str, dataset: str, out_path: Path) -> None:
     if tf is None:  # pragma: no cover - defensive
         raise RuntimeError("TensorFlow not available for training")
+    try:  # ensure h5py available
+        import h5py  # noqa: F401
+    except Exception as exc:  # pragma: no cover - diagnostics
+        raise RuntimeError("Missing h5py: required to save .h5. pip install h5py") from exc
     tf.random.set_seed(0)
     np.random.seed(0)
     try:
@@ -67,12 +86,12 @@ def _train_mnist(model_name: str, dataset: str, out_path: Path) -> None:
     ])
     model.compile(optimizer="adam", loss="sparse_categorical_crossentropy", metrics=["acc"])
     model.fit(x_train, y_train, epochs=1, batch_size=128, verbose=0, shuffle=False)
-    model.save(out_path, save_format="h5")
+    model.save(str(out_path), include_optimizer=False, save_format="h5")
 
 
 def ensure_keras(id_: str, repo: str, filename: str) -> str:
     target = MODEL_DIR / f"{id_}.h5"
-    if target.exists():
+    if _verify_keras(target):
         return "existing"
     try:
         from huggingface_hub import hf_hub_download
@@ -83,13 +102,8 @@ def ensure_keras(id_: str, repo: str, filename: str) -> str:
     except Exception:
         _train_mnist(id_, "mnist" if "mnist" in id_ else "fashion_mnist", target)
         status = "trained"
-    if not target.is_file():
+    if not _verify_keras(target):
         return "missing"
-    if tf is not None:
-        try:
-            tf.keras.models.load_model(target)
-        except Exception:
-            return "corrupt"
     return status
 
 
