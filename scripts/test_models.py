@@ -6,17 +6,17 @@ import io
 import sys
 import subprocess
 import importlib
-from pathlib import Path
 
 import numpy as np
 import requests
 from PIL import Image
 
-ROOT = Path(__file__).resolve().parent.parent
+import model_bootstrap as mb  # type: ignore
+
+ROOT = mb.project_root()
 sys.path.append(str(ROOT))
 import model_registry as mr
 
-MODEL_DIR = ROOT / "models"
 FETCH_SCRIPT = ROOT / "scripts" / "fetch_model_zoo.py"
 
 
@@ -27,13 +27,13 @@ def _ensure_models() -> bool:
     missing = [spec.path for spec in mr.MODEL_SPECS.values() if not spec.path.exists()]
     if not missing:
         return True
-    names = ", ".join(p.name for p in missing)
+    names = ", ".join(str(p) for p in missing)
     print(f"Missing models: {names}. Running fetch script...")
     subprocess.run([sys.executable, str(FETCH_SCRIPT)], check=False)
     importlib.reload(mr)
     missing = [spec.path for spec in mr.MODEL_SPECS.values() if not spec.path.exists()]
     if missing:
-        print("Still missing models:", ", ".join(p.name for p in missing))
+        print("Still missing models:", ", ".join(str(p) for p in missing))
         return False
     return True
 

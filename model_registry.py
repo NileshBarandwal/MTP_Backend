@@ -77,6 +77,6 @@ def get_model(key: str) -> BaseModel:
                 raise ValueError(f"Unsupported format: {spec.format}")
         except FileNotFoundError as exc:  # pragma: no cover - runtime message
             raise FileNotFoundError(
-                f"Model file '{spec.path}' not found. Run 'python scripts/fetch_model_zoo.py'."
+                f"Model file not found at: {spec.path}. Run: 'python scripts/fetch_model_zoo.py'"
             ) from exc
     return _model_cache[key]

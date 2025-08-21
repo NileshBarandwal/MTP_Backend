@@ -16,14 +16,15 @@ from torchvision.models import (
     resnet18,
 )
 
+import model_bootstrap as mb  # type: ignore
+
 try:
     import tensorflow as tf
 except Exception:  # pragma: no cover - tensorflow missing
     tf = None  # type: ignore
 
-MODEL_DIR = Path(__file__).resolve().parent.parent / "models"
-REGISTRY_PATH = MODEL_DIR / "registry.json"
-MODEL_DIR.mkdir(exist_ok=True)
+MODEL_DIR = mb.models_dir()
+REGISTRY_PATH = mb.registry_path()
 
 
 # ---------------------------------------------------------------------------
@@ -66,7 +67,7 @@ def _train_mnist(model_name: str, dataset: str, out_path: Path) -> None:
     ])
     model.compile(optimizer="adam", loss="sparse_categorical_crossentropy", metrics=["acc"])
     model.fit(x_train, y_train, epochs=1, batch_size=128, verbose=0, shuffle=False)
-    model.save(out_path)
+    model.save(out_path, save_format="h5")
 
 
 def ensure_keras(id_: str, repo: str, filename: str) -> str:
@@ -78,10 +79,18 @@ def ensure_keras(id_: str, repo: str, filename: str) -> str:
 
         src = hf_hub_download(repo_id=repo, filename=filename)
         Path(src).replace(target)
-        return "downloaded"
+        status = "downloaded"
     except Exception:
         _train_mnist(id_, "mnist" if "mnist" in id_ else "fashion_mnist", target)
-        return "trained"
+        status = "trained"
+    if not target.is_file():
+        return "missing"
+    if tf is not None:
+        try:
+            tf.keras.models.load_model(target)
+        except Exception:
+            return "corrupt"
+    return status
 
 
 # ---------------------------------------------------------------------------
@@ -104,6 +113,8 @@ def ensure_resnet18() -> str:
         status = "random"
     model.eval()
     torch.save({"model": model, "meta": meta}, path)
+    if not path.is_file():
+        return "missing"
     labels = MODEL_DIR / "imagenet_labels.txt"
     if not labels.exists():
         with labels.open("w") as f:
@@ -143,6 +154,8 @@ def ensure_mobilenet_onnx() -> str:
         output_names=["logits"],
         opset_version=11,
     )
+    if not path.is_file():
+        return "missing"
     labels = MODEL_DIR / "imagenet_labels.txt"
     if not labels.exists():
         with labels.open("w") as f:
@@ -183,9 +196,24 @@ def main() -> None:
     summary["resnet18_imagenet"] = ensure_resnet18()
     summary["mobilenet_v3_small"] = ensure_mobilenet_onnx()
     update_registry()
+    path_map = {
+        "mnist_digits": mb.resolve_model_path("mnist_digits.h5"),
+        "fashion_mnist": mb.resolve_model_path("fashion_mnist.h5"),
+        "resnet18_imagenet": mb.resolve_model_path("resnet18.pt"),
+        "mobilenet_v3_small": mb.resolve_model_path("mobilenet_v3_small.onnx"),
+    }
     print("\nModel fetch summary:")
+    missing = []
     for k, v in summary.items():
-        print(f" - {k}: {v}")
+        p = path_map[k]
+        exists = p.is_file()
+        status = f"{v} ({p})" if exists else f"{v} (missing {p})"
+        print(f" - {k}: {status}")
+        if not exists and v != "skipped":
+            missing.append(k)
+    if missing:
+        print("Missing models after fetch:", ", ".join(missing))
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
