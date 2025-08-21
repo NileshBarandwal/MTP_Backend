@@ -1,0 +1,8 @@
+__pycache__/
+.env
+*.h5
+*.bin
+*.pt
+*.ckpt
+models/*
+!models/.gitkeep

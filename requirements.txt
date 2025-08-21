@@ -1,0 +1,7 @@
+torch
+tensorflow
+transformers
+requests
+huggingface_hub
+tqdm
+numpy
