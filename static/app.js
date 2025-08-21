@@ -1,3 +1,18 @@
+document.addEventListener('DOMContentLoaded', async () => {
+  const modelSelect = document.getElementById('modelSelect');
+  try {
+    const resp = await axios.get('/models');
+    resp.data.models.forEach((m) => {
+      const opt = document.createElement('option');
+      opt.value = m.key;
+      opt.textContent = m.description;
+      modelSelect.appendChild(opt);
+    });
+  } catch (err) {
+    console.error('Failed to load model registry', err);
+  }
+});
+
 document.getElementById('uploadForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const fileInput = document.getElementById('fileInput');
@@ -25,7 +40,7 @@ document.getElementById('uploadForm').addEventListener('submit', async (e) => {
   submitBtn.textContent = 'Loading...';
 
   try {
-    const resp = await axios.post('/infer', formData);
+    const resp = await axios.post('/predict', formData);
     const data = resp.data;
     predLabel.textContent = `${data.prediction_label}`;
     predConf.textContent = data.confidence.toFixed(4);
