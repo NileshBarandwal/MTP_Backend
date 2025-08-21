@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 import tensorflow as tf
 import torch
+import pytest
 
 try:  # optional dependency
     import onnxruntime as ort
@@ -15,6 +16,13 @@ except Exception:  # noqa: BLE001
 MODEL_DIR = Path(__file__).resolve().parent.parent / "models"
 
 
+@pytest.mark.parametrize(
+    "model_file,label",
+    [
+        ("mnist_digits.h5", "MNIST digits"),
+        ("fashion_mnist.h5", "Fashion-MNIST"),
+    ],
+)
 def test_keras(model_file: str, label: str) -> None:
     path = MODEL_DIR / model_file
     if not path.exists():
@@ -29,8 +37,12 @@ def test_keras(model_file: str, label: str) -> None:
         print(f"✅ {label}: class {idx} (confidence {conf:.4f})")
     except Exception as exc:  # noqa: BLE001
         print(f"❌ {label} failed: {exc}")
-
-
+@pytest.mark.parametrize(
+    "model_file,label",
+    [
+        ("resnet18.pt", "ResNet18 ImageNet"),
+    ],
+)
 def test_torch(model_file: str, label: str) -> None:
     path = MODEL_DIR / model_file
     if not path.exists():
@@ -49,8 +61,12 @@ def test_torch(model_file: str, label: str) -> None:
         print(f"✅ {label}: class {idx} (confidence {conf:.4f})")
     except Exception as exc:  # noqa: BLE001
         print(f"❌ {label} failed: {exc}")
-
-
+@pytest.mark.parametrize(
+    "model_file,label",
+    [
+        ("mobilenet_v3_small.onnx", "MobileNetV3 Small"),
+    ],
+)
 def test_onnx(model_file: str, label: str) -> None:
     if ort is None:
         print("⚠️ onnxruntime not installed; skipping ONNX tests")
