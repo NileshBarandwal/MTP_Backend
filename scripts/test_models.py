@@ -1,100 +1,118 @@
-"""Smoke tests for downloaded models."""
 from __future__ import annotations
 
-from pathlib import Path
+"""Run smoke tests for all registered models."""
+
+import io
+import sys
+import subprocess
+import importlib
 
 import numpy as np
-import tensorflow as tf
-import torch
-import pytest
+import requests
+from PIL import Image
 
-try:  # optional dependency
-    import onnxruntime as ort
-except Exception:  # noqa: BLE001
-    ort = None
+import model_bootstrap as mb  # type: ignore
 
-MODEL_DIR = Path(__file__).resolve().parent.parent / "models"
+ROOT = mb.project_root()
+sys.path.append(str(ROOT))
+import model_registry as mr
+
+FETCH_SCRIPT = ROOT / "scripts" / "fetch_model_zoo.py"
 
 
-@pytest.mark.parametrize(
-    "model_file,label",
-    [
-        ("mnist_digits.h5", "MNIST digits"),
-        ("fashion_mnist.h5", "Fashion-MNIST"),
-    ],
-)
-def test_keras(model_file: str, label: str) -> None:
-    path = MODEL_DIR / model_file
-    if not path.exists():
-        print(f"❌ {model_file} missing; run scripts/download_models.py")
-        return
+# ---------------------------------------------------------------------------
+
+
+def _ensure_models() -> bool:
+    missing = [spec.path for spec in mr.MODEL_SPECS.values() if not spec.path.exists()]
+    if not missing:
+        return True
+    names = ", ".join(str(p) for p in missing)
+    print(f"Missing models: {names}. Running fetch script...")
+    subprocess.run([sys.executable, str(FETCH_SCRIPT)], check=False)
+    importlib.reload(mr)
+    missing = [spec.path for spec in mr.MODEL_SPECS.values() if not spec.path.exists()]
+    if missing:
+        print("Still missing models:", ", ".join(str(p) for p in missing))
+        return False
+    # explicit check for Keras artifacts
+    for name in ("mnist_digits.h5", "fashion_mnist.h5"):
+        path = mb.resolve_model_path(name)
+        if not path.is_file():
+            print(f"{path} missing after fetch")
+            return False
+    return True
+
+
+def _synthetic_input(spec) -> np.ndarray:
+    h, w = spec.input_size
+    if spec.mode == "L":
+        return np.random.rand(1, h, w, 1).astype("float32")
+    else:
+        return np.random.rand(1, 3, h, w).astype("float32")
+
+
+# ---------------------------------------------------------------------------
+
+
+def run_local_tests() -> bool:
+    ok = True
+    for key, spec in mr.MODEL_SPECS.items():
+        try:
+            model = mr.get_model(key)
+            dummy = _synthetic_input(spec)
+            preds = model.predict(dummy)
+            if np.isnan(preds).any() or np.isinf(preds).any():
+                raise RuntimeError("non-finite outputs")
+            idx = int(np.argmax(preds[0]))
+            print(f"✅ {key}: top-1 class {idx}")
+        except Exception as exc:  # noqa: BLE001
+            print(f"❌ {key} failed: {exc}")
+            ok = False
+    return ok
+
+
+def run_http_test() -> bool:
+    url = "http://127.0.0.1:8000"
     try:
-        model = tf.keras.models.load_model(path)
-        dummy = np.random.rand(1, 28, 28, 1).astype("float32")
-        preds = model.predict(dummy)
-        idx = int(np.argmax(preds))
-        conf = float(np.max(preds))
-        print(f"✅ {label}: class {idx} (confidence {conf:.4f})")
-    except Exception as exc:  # noqa: BLE001
-        print(f"❌ {label} failed: {exc}")
-@pytest.mark.parametrize(
-    "model_file,label",
-    [
-        ("resnet18.pt", "ResNet18 ImageNet"),
-    ],
-)
-def test_torch(model_file: str, label: str) -> None:
-    path = MODEL_DIR / model_file
-    if not path.exists():
-        print(f"❌ {model_file} missing; run scripts/download_models.py")
-        return
-    try:
-        bundle = torch.load(path, map_location="cpu")
-        model = bundle["model"] if isinstance(bundle, dict) and "model" in bundle else bundle
-        model.eval()
-        dummy = torch.randn(1, 3, 224, 224)
-        with torch.no_grad():
-            out = model(dummy)
-            probs = torch.softmax(out, dim=1)[0]
-        idx = int(torch.argmax(probs))
-        conf = float(probs[idx])
-        print(f"✅ {label}: class {idx} (confidence {conf:.4f})")
-    except Exception as exc:  # noqa: BLE001
-        print(f"❌ {label} failed: {exc}")
-@pytest.mark.parametrize(
-    "model_file,label",
-    [
-        ("mobilenet_v3_small.onnx", "MobileNetV3 Small"),
-    ],
-)
-def test_onnx(model_file: str, label: str) -> None:
-    if ort is None:
-        print("⚠️ onnxruntime not installed; skipping ONNX tests")
-        return
-    path = MODEL_DIR / model_file
-    if not path.exists():
-        print(f"❌ {model_file} missing; run scripts/download_models.py")
-        return
-    try:
-        session = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
-        dummy = np.random.randn(1, 3, 224, 224).astype("float32")
-        inputs = {session.get_inputs()[0].name: dummy}
-        outputs = session.run(None, inputs)[0]
-        idx = int(np.argmax(outputs[0]))
-        conf = float(np.max(outputs[0]))
-        print(f"✅ {label}: class {idx} (confidence {conf:.4f})")
-    except Exception as exc:  # noqa: BLE001
-        print(f"❌ {label} failed: {exc}")
+        r = requests.get(f"{url}/health", timeout=1)
+    except requests.exceptions.RequestException:
+        print("⚠️ server not running; skipping HTTP test")
+        return True
+    if r.status_code != 200:
+        print("⚠️ /health returned", r.status_code)
+        return False
+    spec = next(iter(mr.MODEL_SPECS.values()))
+    dummy = (np.random.rand(*spec.input_size) * 255).astype("uint8")
+    if spec.mode == "L":
+        img = Image.fromarray(dummy, mode="L")
+    else:
+        img = Image.fromarray(dummy.transpose(1, 2, 0), mode="RGB")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    files = {"file": ("test.png", buf, "image/png")}
+    data = {"model_key": spec.key}
+    r = requests.post(f"{url}/predict", files=files, data=data, timeout=5)
+    if r.status_code != 200:
+        print("❌ HTTP inference failed:", r.text)
+        return False
+    if "prediction_index" not in r.json():
+        print("❌ unexpected HTTP response:", r.text)
+        return False
+    print("✅ HTTP inference ok")
+    return True
+
+
+# ---------------------------------------------------------------------------
 
 
 def main() -> None:
-    if not MODEL_DIR.exists():
-        print("❌ models directory missing; run scripts/download_models.py")
-        return
-    test_keras("mnist_digits.h5", "MNIST digits")
-    test_keras("fashion_mnist.h5", "Fashion-MNIST")
-    test_torch("resnet18.pt", "ResNet18 ImageNet")
-    test_onnx("mobilenet_v3_small.onnx", "MobileNetV3 Small")
+    if not _ensure_models():
+        sys.exit(1)
+    ok_local = run_local_tests()
+    ok_http = run_http_test()
+    sys.exit(0 if ok_local and ok_http else 1)
 
 
 if __name__ == "__main__":

@@ -4,9 +4,11 @@ tensorflow>=2.13
 torch>=2.2
 torchvision>=0.17
 onnxruntime>=1.17
+onnx
 huggingface-hub>=0.23
 transformers>=4.40
 tqdm
 requests
 numpy
 pillow
+h5py
