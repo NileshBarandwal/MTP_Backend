@@ -1,86 +1,43 @@
-# MTP
+# Minimal MNIST Keras Project
 
-This repository simulates a lightweight healthcare AI inference service. A Flask
-server exposes REST endpoints and a small web UI where users can upload images
-and choose from multiple vision models. Models are downloaded locally so all
-inference runs offline once the assets are present.
-
-## Features
-
-* Keras, PyTorch and ONNX model formats handled through a unified interface
-* Auto image preprocessing (resize, normalization, color/EXIF handling)
-* Endpoints for health checks, model registry, single & batch prediction, and
-  simple request metrics
-* Basic web interface to upload an image and view predictions
-
-## Setup
-
-Requires Python 3.10 or newer.
+## Quickstart
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
+python -m venv .venv && source .venv/bin/activate  # or .\\.venv\\Scripts\\activate on Windows
 pip install -r requirements.txt
-python scripts/fetch_model_zoo.py
-python scripts/test_models.py
-uvicorn inference_server:app --reload --port 8000
+python -m src.train --config ./configs/train.yaml
+uvicorn src.serve:app --host 0.0.0.0 --port 8000
 ```
 
-`fetch_model_zoo.py` downloads small pre-trained checkpoints when possible and
-falls back to training tiny models locally if the download fails. Artifacts and
-checksums are written to `models/registry.json` and stored under `models/`.
+To enable MLflow logging, set `log_mlflow: true` in `configs/train.yaml` and ensure an MLflow tracking server (e.g., `mlflow ui`) is running.
 
-`test_models.py` verifies that each registered model can perform a forward pass
-and, if the server is running on `localhost:8000`, performs an HTTP inference
-request as well. The script exits non-zero if any check fails.
+After starting the server, open <http://localhost:8000> in a browser for a simple HTML interface to upload images and view predictions.
 
-## Run server
+## Example `curl`
+
+Base64 JSON:
 
 ```bash
-uvicorn inference_server:app --reload --port 8000
+curl -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{"image_base64":"<BASE64_OF_28x28_GRAYSCALE>"}'
 ```
 
-The server hosts the UI at http://127.0.0.1:8000. Upload an image, pick a model
-from the drop‑down (populated from `/models`), and view the predicted label and
-confidence.
+File upload:
 
-### API Endpoints
+```bash
+curl -X POST "http://localhost:8000/predict" \
+  -F "file=@tests/sample_digit.png"
+```
 
-| Method | Path             | Description                              |
-| ------ | ---------------- | ---------------------------------------- |
-| GET    | `/health`        | Basic health check                       |
-| GET    | `/models`        | List available models                    |
-| POST   | `/predict`       | Predict for a single uploaded image      |
-| POST   | `/batch_predict` | Predict for multiple images in one call  |
-| GET    | `/metrics`       | Simple request counters per model        |
+## Outputs
 
-## Models
+Trained models are saved under `registry/models/<model_name>/<timestamp>/` with:
+- `model.h5`
+- `params.json`
+- `metrics.json`
+- `eval_summary.json`
+- `code_sha.txt` (if available)
+- `confusion_matrix.json`
 
-| Key                  | Description                       | Format   |
-| -------------------- | --------------------------------- | -------- |
-| `mnist_digits`       | CNN trained on MNIST digits       | Keras    |
-| `fashion_mnist`      | Fashion-MNIST classifier          | Keras    |
-| `resnet18_imagenet`  | ResNet18 ImageNet classifier      | PyTorch  |
-| `mobilenet_v3_small` | MobileNetV3 Small ImageNet model  | ONNX     |
-
-## Adding models
-
-To register a new model:
-
-1. Add an entry to `models/registry.json` describing the framework, relative
-   path, input specification and preprocessing profile.
-2. Update `scripts/fetch_model_zoo.py` with logic to download or train the
-   artifact.
-3. Run `python scripts/fetch_model_zoo.py && python scripts/test_models.py` to
-   verify the model.
-
-## Troubleshooting
-
-* The repository is CPU-only. Large TensorFlow installations may emit oneDNN
-  warnings; set `TF_ENABLE_ONEDNN_OPTS=0` to silence them.
-* If downloads fail, the fetch script will train small fallback models. These
-  are sufficient for tests but may not be accurate.
-* Ensure enough disk space for temporary checkpoints.
-
-## Disclaimer
-
-This project is a demo only and must not be used for clinical decision making.
+The latest model version is recorded in `registry/models/<model_name>/latest.txt`.

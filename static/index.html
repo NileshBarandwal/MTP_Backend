@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>MNIST Predictor</title>
+</head>
+<body>
+  <h1>MNIST Predictor</h1>
+  <input type="file" id="file-input" accept="image/*" />
+  <button id="predict-btn">Predict</button>
+  <p id="result"></p>
+  <script>
+    document.getElementById('predict-btn').addEventListener('click', async () => {
+      const input = document.getElementById('file-input');
+      if (!input.files.length) {
+        alert('Please select an image');
+        return;
+      }
+      const formData = new FormData();
+      formData.append('file', input.files[0]);
+      const res = await fetch('/predict', {
+        method: 'POST',
+        body: formData
+      });
+      if (!res.ok) {
+        document.getElementById('result').textContent = 'Error: ' + res.status;
+        return;
+      }
+      const data = await res.json();
+      document.getElementById('result').textContent = `Label: ${data.label} (confidence: ${data.confidence.toFixed(3)})`;
+    });
+  </script>
+</body>
+</html>
