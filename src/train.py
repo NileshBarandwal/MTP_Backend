@@ -16,7 +16,7 @@ from .utils import ensure_dir, git_sha_or_none, set_seed, write_json
 def main(config_path: str) -> None:
     with open(config_path) as f:
         cfg = yaml.safe_load(f)
-
+        
     log_mlflow = cfg.get('log_mlflow', False)
     if log_mlflow:
         import mlflow
@@ -111,7 +111,6 @@ def main(config_path: str) -> None:
 
     if log_mlflow:
         mlflow.end_run()
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
