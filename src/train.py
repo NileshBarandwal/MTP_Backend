@@ -112,7 +112,6 @@ def main(config_path: str) -> None:
     if log_mlflow:
         mlflow.end_run()
 
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, required=True)

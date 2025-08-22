@@ -45,7 +45,6 @@ load_latest()
 class ImagePayload(BaseModel):
     image_base64: str
 
-
 @app.get('/', response_class=HTMLResponse)
 def index() -> HTMLResponse:
     index_path = Path('static/index.html')
