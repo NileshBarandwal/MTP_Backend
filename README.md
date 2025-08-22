@@ -8,8 +8,13 @@ pip install -r requirements.txt
 python -m src.train --config ./configs/train.yaml
 uvicorn src.serve:app --host 0.0.0.0 --port 8000
 ```
+
 To enable MLflow logging, set `log_mlflow: true` in `configs/train.yaml` and ensure an MLflow tracking server (e.g., `mlflow ui`) is running.
+
+After starting the server, open <http://localhost:8000> in a browser for a simple HTML interface to upload images and view predictions.
+
 ## Example `curl`
+
 Base64 JSON:
 
 ```bash

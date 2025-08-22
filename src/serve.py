@@ -7,12 +7,15 @@ from pathlib import Path
 import numpy as np
 import tensorflow as tf
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from PIL import Image
 
 from .utils import read_json
 
 app = FastAPI()
+app.mount('/static', StaticFiles(directory='static'), name='static')
 
 REGISTRY_ROOT = Path('./registry/models')
 MODEL_NAME = 'mnist_cnn'
@@ -41,6 +44,13 @@ load_latest()
 
 class ImagePayload(BaseModel):
     image_base64: str
+
+@app.get('/', response_class=HTMLResponse)
+def index() -> HTMLResponse:
+    index_path = Path('static/index.html')
+    if index_path.exists():
+        return HTMLResponse(index_path.read_text())
+    return HTMLResponse('<h1>index.html not found</h1>', status_code=404)
 
 
 @app.get('/healthz')
