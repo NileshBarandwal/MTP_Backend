@@ -1,39 +1,124 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>MTP Inference Demo</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  </head>
-  <body class="p-4">
-    <div class="container">
-      <h1 class="mb-3">Healthcare AI Inference Demo</h1>
-      <p class="text-muted">Upload an image and choose a model to simulate inference.</p>
-      <form id="uploadForm">
-        <div class="mb-3">
-          <input class="form-control" type="file" id="fileInput" accept="image/*" required>
-        </div>
-        <div class="mb-3">
-          <select class="form-select" id="modelSelect"></select>
-        </div>
-        <button class="btn btn-primary" type="submit">Run Inference</button>
-      </form>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MNIST Predictor</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>MNIST Predictor</h1>
+    <div class="controls">
+      <label for="modelSelect">Model:</label>
+      <select id="modelSelect"></select>
 
-      <div id="result" class="mt-4" style="display:none;">
-        <div class="card">
-          <div class="card-body">
-            <h5 class="card-title">Result</h5>
-            <p class="card-text">Prediction: <span id="predLabel"></span></p>
-            <p class="card-text">Confidence: <span id="predConf"></span></p>
-          </div>
-        </div>
-      </div>
-
-      <div id="error" class="mt-4 text-danger" style="display:none;"></div>
+      <label for="versionSelect">Version:</label>
+      <select id="versionSelect"></select>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-    <script src="{{ url_for('static', filename='app.js') }}"></script>
-  </body>
+    <div id="dropZone" class="drop-zone">
+      <p>Drag & drop an image here, or click to select</p>
+      <input type="file" id="fileInput" accept="image/*" />
+      <img id="preview" alt="preview" />
+    </div>
+
+    <button id="predictBtn">Predict</button>
+    <div id="loading" class="hidden">Predicting...</div>
+    <div id="result" class="result hidden"></div>
+  </div>
+
+  <script>
+    async function fetchModels() {
+      const res = await fetch('/models');
+      const data = await res.json();
+      const modelSelect = document.getElementById('modelSelect');
+      modelSelect.innerHTML = '';
+      Object.keys(data).forEach((model) => {
+        const opt = document.createElement('option');
+        opt.value = model;
+        opt.textContent = model;
+        modelSelect.appendChild(opt);
+      });
+      populateVersions();
+    }
+
+    function populateVersions() {
+      const model = document.getElementById('modelSelect').value;
+      fetch('/models').then(res => res.json()).then(data => {
+        const versions = data[model] || [];
+        const versionSelect = document.getElementById('versionSelect');
+        versionSelect.innerHTML = '';
+        versions.forEach(v => {
+          const opt = document.createElement('option');
+          opt.value = v;
+          opt.textContent = v;
+          versionSelect.appendChild(opt);
+        });
+      });
+    }
+
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const preview = document.getElementById('preview');
+    dropZone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', handleFiles);
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragging');
+    });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragging'));
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragging');
+      const files = e.dataTransfer.files;
+      if (files.length) {
+        fileInput.files = files;
+        handleFiles();
+      }
+    });
+
+    function handleFiles() {
+      const file = fileInput.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        preview.src = e.target.result;
+        preview.classList.add('show');
+      };
+      reader.readAsDataURL(file);
+    }
+
+    document.getElementById('modelSelect').addEventListener('change', populateVersions);
+
+    document.getElementById('predictBtn').addEventListener('click', async () => {
+      const file = fileInput.files[0];
+      if (!file) { alert('Please select an image'); return; }
+      const model = document.getElementById('modelSelect').value;
+      const version = document.getElementById('versionSelect').value;
+      const formData = new FormData();
+      formData.append('file', file);
+      const loading = document.getElementById('loading');
+      const resultDiv = document.getElementById('result');
+      loading.classList.remove('hidden');
+      resultDiv.classList.add('hidden');
+      try {
+        const res = await fetch(`/predict?model_name=${model}&version=${version}`, {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        resultDiv.textContent = `Label: ${data.label}, Confidence: ${data.confidence.toFixed(4)}, Model: ${data.model_version}`;
+        resultDiv.classList.remove('hidden');
+      } catch (err) {
+        resultDiv.textContent = 'Error during prediction';
+        resultDiv.classList.remove('hidden');
+      } finally {
+        loading.classList.add('hidden');
+      }
+    });
+
+    fetchModels();
+  </script>
+</body>
 </html>
