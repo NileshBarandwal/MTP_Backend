@@ -3,14 +3,13 @@
 ## Quickstart
 
 ```bash
-python -m venv .venv && source .venv/bin/activate  # or .\.venv\Scripts\activate on Windows
+python -m venv .venv && source .venv/bin/activate  # or .\\.venv\\Scripts\\activate on Windows
 pip install -r requirements.txt
 python -m src.train --config ./configs/train.yaml
 uvicorn src.serve:app --host 0.0.0.0 --port 8000
 ```
-
+To enable MLflow logging, set `log_mlflow: true` in `configs/train.yaml` and ensure an MLflow tracking server (e.g., `mlflow ui`) is running.
 ## Example `curl`
-
 Base64 JSON:
 
 ```bash
@@ -34,5 +33,6 @@ Trained models are saved under `registry/models/<model_name>/<timestamp>/` with:
 - `metrics.json`
 - `eval_summary.json`
 - `code_sha.txt` (if available)
+- `confusion_matrix.json`
 
 The latest model version is recorded in `registry/models/<model_name>/latest.txt`.

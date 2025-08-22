@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 import tensorflow as tf
 import yaml
+from sklearn.metrics import confusion_matrix
 
 from .model import build_preprocess, get_model_keras
 from .utils import ensure_dir, git_sha_or_none, set_seed, write_json
@@ -15,6 +16,14 @@ from .utils import ensure_dir, git_sha_or_none, set_seed, write_json
 def main(config_path: str) -> None:
     with open(config_path) as f:
         cfg = yaml.safe_load(f)
+        
+    log_mlflow = cfg.get('log_mlflow', False)
+    if log_mlflow:
+        import mlflow
+        mlflow.start_run()
+        mlflow.log_params(
+            {k: cfg[k] for k in ['seed', 'epochs', 'batch_size', 'lr', 'model_name']}
+        )
 
     set_seed(cfg['seed'])
 
@@ -46,7 +55,10 @@ def main(config_path: str) -> None:
     class ValAccCallback(tf.keras.callbacks.Callback):
         def on_epoch_end(self, epoch, logs=None):
             if logs and 'val_accuracy' in logs:
-                print(f"Epoch {epoch + 1}: val_acc={logs['val_accuracy']:.4f}")
+                val_acc = float(logs['val_accuracy'])
+                print(f"Epoch {epoch + 1}: val_acc={val_acc:.4f}")
+                if log_mlflow:
+                    mlflow.log_metric('val_accuracy', val_acc, step=epoch + 1)
 
     history = model.fit(
         train_ds,
@@ -57,6 +69,13 @@ def main(config_path: str) -> None:
     )
 
     test_loss, test_acc = model.evaluate(test_ds, verbose=0)
+    if log_mlflow:
+        mlflow.log_metric('test_accuracy', float(test_acc))
+
+    preds = model.predict(test_ds)
+    y_true = np.concatenate([np.argmax(y, axis=1) for _, y in test_ds.as_numpy_iterator()])
+    y_pred = np.argmax(preds, axis=1)
+    cm = confusion_matrix(y_true, y_pred)
 
     params = {"image_size": 28, "mean": 0.1307, "std": 0.3081}
     params_path = Path(cfg['data_root']) / 'processed' / 'params.json'
@@ -70,9 +89,19 @@ def main(config_path: str) -> None:
     write_json({"TACC": float(test_acc)}, model_dir / 'metrics.json')
     best_val_acc = max(history.history.get('val_accuracy', [0.0]))
     write_json({"best_val_acc": float(best_val_acc), "test_acc": float(test_acc)}, model_dir / 'eval_summary.json')
+    write_json({"confusion_matrix": cm.tolist()}, model_dir / 'confusion_matrix.json')
     sha = git_sha_or_none()
     if sha:
         (model_dir / 'code_sha.txt').write_text(sha)
+        if log_mlflow:
+            mlflow.set_tag('code_sha', sha)
+
+    if log_mlflow:
+        mlflow.log_artifact(str(model_dir / 'model.h5'))
+        mlflow.log_artifact(str(model_dir / 'params.json'))
+        mlflow.log_artifact(str(model_dir / 'metrics.json'))
+        mlflow.log_artifact(str(model_dir / 'eval_summary.json'))
+        mlflow.log_artifact(str(model_dir / 'confusion_matrix.json'))
 
     latest_path = Path(cfg['registry_root']) / cfg['model_name'] / 'latest.txt'
     ensure_dir(latest_path.parent)
@@ -80,6 +109,8 @@ def main(config_path: str) -> None:
 
     print(str(model_dir))
 
+    if log_mlflow:
+        mlflow.end_run()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

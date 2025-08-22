@@ -6,3 +6,4 @@ model_name: mnist_cnn
 registry_root: ./registry/models
 data_root: ./data
 save_every: 1
+log_mlflow: false
