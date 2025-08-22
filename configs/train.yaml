@@ -1,0 +1,8 @@
+seed: 42
+epochs: 5
+batch_size: 128
+lr: 0.001
+model_name: mnist_cnn
+registry_root: ./registry/models
+data_root: ./data
+save_every: 1
